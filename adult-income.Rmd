@@ -1,0 +1,221 @@
+---
+title: "***Machine Learning: Adult Census Income Project***"
+author: "Xiaoqing Wu"
+date: "6/18/2020"
+output: 
+  pdf_document:
+    number_sections: true
+header-includes:
+    - \usepackage[labelformat=empty]{caption}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+sys.source("adult-income.R", envir = knitr::knit_global())
+```
+
+# Introduction 
+\
+ 
+This document describes a machine learning project as apart of Harvard edX Data Science course. The project goal is to use Adult Census dataset hosted on kaggle.com to develop a machine learning model to predict if an adult's income is equal or less than $50K based on 14 predictors 
+
+Machine Learning has two common approaches: supervised learning and unsupervised learning. Supervised learning involves data visualization, data analysis, manual training and tuning data models, whereas unsupervised learning focuses on finding predictors to group observations as clusters and the prediction would be to identify the right clusters for new data entries. This document reports the exploration and findings from a supervised study of Adult Census income
+
+Supervised learning generally has the following phases and each phase will be discussed in a corresponding section: 
+
+* Visualizing and analysing data in order to identify predictors that determine rating outcomes
+* Wrangling data
+* Developing training model for the machine to learn behaviors from observations
+* Applying the training model to test data set to obtain predictions
+* Measuring the accuracy of the predictions against true results and evaluating the performance of the recommendation system
+\
+ 
+# Methods and Analysis
+\
+ 
+## Data downloading
+The income census data was downloaded from the author's github site and imported to a data set called adult.csv with 32,561 entries:
+
+```{r echo=FALSE, message=FALSE}
+adult_summary1
+adult_summary2
+```
+\
+
+
+## Data Wrangling
+
+**Processing question marks and adding a new factor level**
+
+The adult income data has 4,262 question marks distributed in workclass, occupation, and native.country columns. To facilitate downstream processes, all question marks were replaced with "Unknown" and a new factor level "Unknown" was added to these three components. 
+
+The next step was to check if there are a large number of entries that have unknown values in all three components as they can skew prediction outcomes; there are only 27 such entries and hence were left in the data set. \ 
+
+
+## Dimension Reduction
+
+**Near Zero Variables**
+
+The nearZeroVar function identified three nzv variables, they are capital.gain, capital.loss and native.country; the capital.gain has 91% zeros and capital.loss 95% zeros,  95% of native.country is the United-States. Near zero variables aren't informative and hence were removed from the adult data set and the resultant data was stored in a new object called adultr to denote it's a reduced dataset. 
+
+<!-- # ```{r echo=FALSE, message=FALSE, fig.height = 1, fig.align = "center"} -->
+<!-- # ```{r echo=FALSE, message=FALSE, fig.height = 3, fig.align = "center"} -->
+```{r echo=FALSE, message=FALSE, fig.height = 4, fig.align = "center"}
+grid.arrange(p_cgain, p_closs, p_country, ncol=2, nrow=2,
+                    top = textGrob("Near Zero Variables",gp=gpar(fontsize=10)))
+```
+\
+
+
+**Principal Components**
+
+After three near zero variables were removed, prncomp function was run to check if the components could be trimmed further, but there wasn't more to be trimmed. The variability of sex's cumulative proportion is 0.9247 and hours.per.week's cumulative proportion is 0.9684. In order to maintain 95% variance all variables were retained.
+
+```{r echo=FALSE, message=FALSE, fig.align = "center"}
+adultrn.pca.summary
+```
+
+Below is a principal components biplot created from 500 random samples:
+```{r echo=FALSE, message=FALSE, fig.align = "center"}
+biplot(pca.out,scale=0, cex=.7)
+```
+
+
+## Training and Test Data Separation
+ 
+In a supervised machine learning process, observation data is typically split into a training set and a validation set. The training set is used to learn predictor behaviors and create recommendation algorithms, the validation set is used to produce final prediction results. The census income was split into a 26,371 records training set, called dev, and a 2,932 records validation set, called validation.
+
+**Overfitting Avoidance** 
+
+ In order to avoid overfitting and losing effectiveness for future data, the training dataset, dev, was further split into dev_train and dev_test; dev_test was used to select the final prediction model. 
+\
+
+
+## Model Training
+
+Initial training used five methods - Generalized Linear Models (glm), Linear Discriminant Analysis (lda), k-Nearest Neighbour (knn ks = seq(34, 41, 1)), gamLoess, and Random Forest (rf mtry = c(3, 5)). 
+
+ A model training function called run_models was written to provide the flexibility of testing different model combinations, datasets and tuning parameters.
+ 
+**Training Model Overall Accuracies**
+
+```{r echo=FALSE, message=FALSE}
+devrtrain_devrtest_results 
+```
+\
+
+
+
+# Results
+\
+
+In the multiple model trainings, random forest, rf, scored the highest overall accuracy and was chosen to be the final prediction model. Below is the final prediction accuracy from rf using the validation set:
+
+**Final Results**
+```{r echo=FALSE, message=FALSE}
+devr_validationr_results
+```
+
+```{r echo=FALSE, message=FALSE, fig.align = "left"}
+rfcm_acc_tbl
+```
+
+```{r echo=FALSE, message=FALSE}
+rfcm$byClass[1:2]
+```
+
+```{r echo=FALSE, message=FALSE, fig.align = "center"}
+rf_varImp 
+```
+\
+
+## Analyzing The Final Prediction Results
+
+The table below reveals that low specificity is a major source of miss classification, over 40% of >50K cases were predicted to be <=50k. 
+
+```{r echo=FALSE, message=FALSE}
+rf_ref_pred_tbl
+```
+
+
+In an effort to root cause the low specificity that missclassified >50K to <=50k, four of the top five important predictors were investigated: age, education.num, fnlwgt and hours per week and their respective averages were compared in four groups: 
+
+- high income: true >50K entries
+- low income: true <=50K entries
+- high income predicted correctly by rf: >50K predicted as >50K
+- high income predicted wrongly by rf:   >50K predicted as <=50K
+
+
+```{r echo=FALSE, message=FALSE, fig.align = "left"}
+comps_tbl
+```
+\ 
+
+```{r echo=FALSE, out.width="45%", message=FALSE}
+p_age_avg
+p_fnlwgt_avg
+```
+
+```{r echo=FALSE, out.width="45%", message=FALSE}
+p_edunum_avg 
+p_hwk_avg 
+```
+\
+
+As it can be observed from above histgrams, the pred_wrong group's average education year is lower than the average of true high income group, similarly age, work hours per week and fnlwgt are all lower than the true high income group. So it appears that as far as random forest is concerned, the pred_wrong group doesn't fit in the "typical" profile of the high income group and as a result this group's income was predicted to be <=$50K.  
+
+## Final Result
+
+**Prediction model: random forest 'rf', mtry=3**
+
+```{r echo=FALSE, out.width="45%", message=FALSE}
+devr_validationr_results
+```
+\
+
+## Performance
+\
+
+**Run Time**
+
+The R script ran on a power lacking 2013 MacBook Pro with 8 GB Memory and 2.4 GHz Dual-Core Intel Core i5.  The entire script took about 50 minutes to run including downloading and wrangling data, creating dev and validation summaries, running five evaluation models and then the final rf model.  
+
+Random Forest rf Model Run Time (in seconds)
+```{r echo=FALSE, message=FALSE}
+rfm$times
+```
+
+R Script Run Time (in seconds)
+```{r echo=FALSE, message=FALSE}
+ptm
+```
+
+ 
+\
+
+
+# Conclusion
+\
+
+This project created an adult income prediction model by learning behaviors of eleven predictors from the 1994 adult census, the algorithm is simple but takes time to run.  
+
+The data set is small with not many predictors, and hence random forest worked well; however due to it's long run time random forest may not be a suitable algorithm for larger datasets.
+
+This is a preliminary step in machine learning; much more can be done in future. A next major step would be to study unsupervised machine learning using similar data. 
+\
+
+
+# References {-}
+\
+
+I. Rafael and Harvard dev. Introduction to Data Science 2020
+
+
+
+
+
+
+
